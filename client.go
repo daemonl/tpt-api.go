@@ -1,4 +1,4 @@
-package api
+package tpt
 
 import (
 	"bytes"
@@ -95,7 +95,7 @@ func (c *Client) ExchangeUserCode(code string) (*User, error) {
 
 func (c *Client) User(token string) *User {
 	return &User{
-		token: token,
+		Token: token,
 		RequestBuilder: c.RequestBuilder.WithModifier(
 			&Headers{"User-Token": token},
 		),

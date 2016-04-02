@@ -1,10 +1,10 @@
-package api
+package tpt
 
 import "fmt"
 
 type User struct {
 	*RequestBuilder
-	token string
+	Token string
 }
 
 func (u *User) RevokeToken() error {
@@ -12,7 +12,7 @@ func (u *User) RevokeToken() error {
 		Revoked bool `json:"revoked"`
 	}{}
 	err := u.New("/v1/user/oauth/revoke").PostJSON(map[string]string{
-		"token": u.token,
+		"token": u.Token,
 	}).DecodeInto(resp)
 	if err != nil {
 		return err

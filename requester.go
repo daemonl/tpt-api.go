@@ -1,9 +1,11 @@
-package api
+package tpt
 
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -46,11 +48,11 @@ func (r *RequestBuilder) WithModifier(mod Modifier) *RequestBuilder {
 }
 
 func (rb *RequestBuilder) New(reqPath string) *Request {
-	u := &*rb.BaseURL
+	u := *rb.BaseURL
 	u.Path = path.Join(u.Path, reqPath)
 	req := &http.Request{
 		Method:     "GET",
-		URL:        u,
+		URL:        &u,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
@@ -88,7 +90,7 @@ func (r *Request) Query(query *url.Values) *Request {
 
 // Post performs a http POST request, writing the body as application/json
 func (r *Request) PostJSON(body interface{}) *Request {
-
+	r.Request.Method = "POST"
 	bodyBytes := &bytes.Buffer{}
 	err := json.NewEncoder(bodyBytes).Encode(body)
 	if err != nil {
@@ -114,6 +116,10 @@ func (req *Request) DecodeInto(responseInto interface{}) error {
 	resp, err := req.RawResponse()
 	if err != nil {
 		return err
+	}
+	log.Printf("API %s %s -> %s\n", req.Method, req.URL.String(), resp.Status)
+	if resp.StatusCode != 200 {
+		return fmt.Errorf(resp.Status)
 	}
 	defer resp.Body.Close()
 
