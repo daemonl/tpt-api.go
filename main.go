@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/daemonl/tpt/api"
+	"github.com/daemonl/tpt-api.go/api"
 )
 
 func main() {
