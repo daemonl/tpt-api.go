@@ -8,26 +8,33 @@ import (
 	"sync"
 )
 
-type Config struct {
-	Endpoint     string
-	ClientID     string
-	ClientSecret string
-}
-
-type Client struct {
-	sync.RWMutex
-	Config
-	*BearerToken
-}
-
 type BearerToken struct {
 	Token  string `json:"bearer"`
 	Expiry int64  `json:"expiry"`
 }
 
+type Config struct {
+	Endpoint     string `json:"endpoint"`
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+type Client struct {
+	sync.RWMutex
+	TokenRequestBuilder *RequestBuilder
+	*RequestBuilder
+	Config
+	*BearerToken
+}
+
 func NewClient(config Config) (*Client, error) {
+	u, err := url.Parse(config.Endpoint)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
-		Config: config,
+		Config:              config,
+		TokenRequestBuilder: NewRequestBuilder(u),
 	}, nil
 }
 
@@ -59,20 +66,38 @@ func (c *Client) OAuth() error {
 	if err := json.NewDecoder(resp.Body).Decode(token); err != nil {
 		return err
 	}
+
 	c.BearerToken = token
+	c.RequestBuilder = c.TokenRequestBuilder.WithModifier(
+		&Headers{
+			"Authorization": "Bearer " + c.BearerToken.Token,
+		},
+	)
+
 	return nil
 }
 
-func (c *Client) Get(path string, query url.Values) (*http.Response, error) {
-	req, err := http.NewRequest("GET", c.Endpoint+path+"?"+query.Encode(), nil)
+func (c *Client) ExchangeUserCode(code string) (*User, error) {
+	respBody := &struct {
+		Token string `json:"user_token"`
+	}{}
+
+	err := c.New("/v1/user/oauth/token").PostJSON(map[string]string{
+		"code": code,
+	}).DecodeInto(respBody)
+
 	if err != nil {
 		return nil, err
 	}
-	return c.Do(req)
+
+	return c.User(respBody.Token), nil
 }
 
-func (c *Client) Do(req *http.Request) (*http.Response, error) {
-	//req.Header.Add("User-Token")
-	req.Header.Add("Authorization", "Bearer "+c.BearerToken.Token)
-	return http.DefaultClient.Do(req)
+func (c *Client) User(token string) *User {
+	return &User{
+		token: token,
+		RequestBuilder: c.RequestBuilder.WithModifier(
+			&Headers{"User-Token": token},
+		),
+	}
 }

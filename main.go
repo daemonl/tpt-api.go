@@ -46,7 +46,7 @@ func do() error {
 	}
 	fmt.Printf("%#v\n", *c.BearerToken)
 
-	r, err := c.Get("/v1/news", url.Values{"symbol": {"AAPL"}})
+	r, err := c.New("/v1/news").Query(&url.Values{"symbol": {"AAPL"}}).RawResponse()
 	if err != nil {
 		return err
 	}
