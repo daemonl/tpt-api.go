@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 
 	"github.com/daemonl/tpt.go"
 )
@@ -47,58 +48,77 @@ func do() error {
 	}
 	fmt.Printf("%#v\n", *c.BearerToken)
 
-	r, err := c.New("/v1/news").Query(&url.Values{"symbol": {"AAPL"}}).RawResponse()
+	news, err := c.GetNews("AAPL")
 	if err != nil {
 		return err
 	}
-	b, _ := httputil.DumpResponse(r, true)
-	fmt.Println(string(b))
+	fmt.Println(news)
 
-	http.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
+	user, err := oauthClientFlow(c)
 
-		query := &url.Values{
-			"client_id":    {config.ClientID},
-			"redirect_uri": {"http://localhost:8080/oauth"},
-		}
-		authorizeUrl := config.Endpoint + "/v1/user/oauth/authorize?" + query.Encode()
-
-		rw.Header().Add("Content-Type", "text/html")
-		fmt.Fprintf(rw, `<!DOCTYPE html>
-		<html>
-			<head></head>
-			<body>
-				<a href="%s">Link</a>
-			</body>
-		</html>`, authorizeUrl)
-	})
-
-	http.HandleFunc("/oauth", func(rw http.ResponseWriter, req *http.Request) {
-		code := req.URL.Query().Get("code")
-		if len(code) < 1 {
-			http.Redirect(rw, req, "/", http.StatusTemporaryRedirect)
-			return
-		}
-		user, err := c.ExchangeUserCode(code)
-		if err != nil {
-			fmt.Println(err.Error())
-			http.Redirect(rw, req, "/", http.StatusTemporaryRedirect)
-			return
-		}
-		// TODO: Store This
-		fmt.Printf("User Access Token: %s\n", user.Token)
-
-		accDetails, err := user.GetAccountDetails()
-		if err != nil {
-			fmt.Println(err.Error())
-			http.Error(rw, err.Error(), 500)
-			return
-		}
-		fmt.Println(accDetails)
-		json.NewEncoder(rw).Encode(accDetails)
-
-	})
-
-	http.ListenAndServe(":8080", nil)
+	accDetails, err := user.GetAccountDetails()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(accDetails)
 
 	return nil
+}
+
+func oauthClientFlow(c *tpt.Client) (*tpt.User, error) {
+
+	userChan := make(chan *tpt.User)
+	errChan := make(chan error)
+
+	s := &http.Server{
+		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			code := req.URL.Query().Get("code")
+			if len(code) < 1 {
+				query := &url.Values{
+					"client_id":    {c.Config.ClientID},
+					"redirect_uri": {"http://localhost:8080/oauth"},
+				}
+				authorizeUrl := c.Config.Endpoint + "/v1/user/oauth/authorize?" + query.Encode()
+
+				http.Redirect(rw, req, authorizeUrl, http.StatusTemporaryRedirect)
+				return
+			}
+			user, err := c.ExchangeUserCode(code)
+			if err != nil {
+				fmt.Println(err.Error())
+				http.Redirect(rw, req, "/", http.StatusTemporaryRedirect)
+				return
+			}
+			// TODO: Store This
+			fmt.Printf("User Access Token: %s\n", user.Token)
+			userChan <- user
+			rw.Write([]byte("OK - You can close the browser now"))
+		}),
+	}
+
+	l, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		return nil, err
+	}
+	defer l.Close()
+
+	go func() {
+		err = s.Serve(l)
+		errChan <- err
+	}()
+
+	fmt.Println("Visit http://localhost:8080 to authorize the application")
+	fmt.Println("Attempting to do it for you...")
+
+	// Cross Platform? These will exit one way or another
+	exec.Command("start", "http://localhost:8080").Start()
+	exec.Command("open", "http://localhost:8080").Start()
+	exec.Command("xdg-open", "http://localhost:8080").Start()
+
+	select {
+	case err := <-errChan:
+		return nil, err
+	case user := <-userChan:
+		return user, nil
+	}
 }
