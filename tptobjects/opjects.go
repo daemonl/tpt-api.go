@@ -1,4 +1,4 @@
-package tpt
+package tptobjects
 
 type UserAccountDetails struct {
 	ID              string `json:"id"`
@@ -29,22 +29,4 @@ type Address struct {
 	State      string  `json:"state"`
 	PostalCode string  `json:"postal_code"`
 	Country    string  `json:"country"`
-}
-
-type NewsResponse struct {
-	Items []NewsItem `json:"news"`
-}
-
-type NewsItem struct {
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	Summary string `json:"summary"`
-}
-
-func (c *Client) GetNews(symbol string) (*NewsResponse, error) {
-	resp := &NewsResponse{}
-	err := c.NewRequest("/v1/news").
-		AddQuery("symbol", symbol).
-		DecodeInto(resp)
-	return resp, err
 }

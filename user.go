@@ -2,6 +2,8 @@ package tpt
 
 import (
 	"fmt"
+
+	"github.com/daemonl/tpt.go/tptobjects"
 )
 
 // User wraps an oAuth-ish token which can be used for user authenticated API
@@ -47,8 +49,8 @@ func (u *User) RevokeToken() error {
 }
 
 // GetAccountDetails returns the user’s account details.
-func (u *User) GetAccountDetails() (*UserAccountDetails, error) {
-	resp := &UserAccountDetails{}
+func (u *User) GetAccountDetails() (*tptobjects.UserAccountDetails, error) {
+	resp := &tptobjects.UserAccountDetails{}
 	err := u.NewRequest("/v1/user/account").DecodeInto(resp)
 	return resp, err
 }

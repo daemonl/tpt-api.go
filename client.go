@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+
+	"github.com/daemonl/tpt.go/tptobjects"
 )
 
 // BearerToken is given to an API client to authenticate the
@@ -113,4 +115,16 @@ func (c *Client) User(token string) *User {
 		Token:  token,
 		Client: c,
 	}
+}
+
+/////////////////////////
+// Wrapped API Methods //
+/////////////////////////
+
+func (c *Client) GetNews(symbol string) (*tptobjects.NewsResponse, error) {
+	resp := &tptobjects.NewsResponse{}
+	err := c.NewRequest("/v1/news").
+		AddQuery("symbol", symbol).
+		DecodeInto(resp)
+	return resp, err
 }
