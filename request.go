@@ -7,12 +7,31 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
+	"path"
 )
 
 // Request is a chainable request being built
 type Request struct {
 	*http.Request
 	gotError error
+}
+
+// NewRequest builds a default request from a url and path.
+func NewRequest(base url.URL, reqPath string) *Request {
+	base.Path = path.Join(base.Path, reqPath)
+	req := &http.Request{
+		Method:     "GET", // Default, can be changed by the chainer
+		URL:        &base,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     http.Header{},
+		Host:       base.Host,
+	}
+	return &Request{
+		Request: req,
+	}
 }
 
 // err sets the internal error. Only the first error is ever returned, and only

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"path"
 	"sync"
 )
 
@@ -46,21 +45,9 @@ func NewClient(config Config) (*Client, error) {
 
 // New starts a new builder chain
 func (c *Client) NewRequest(reqPath string) *Request {
-	u := *c.BaseURL
-	u.Path = path.Join(u.Path, reqPath)
-	req := &http.Request{
-		Method:     "GET", // Default, can be changed by the chainer
-		URL:        &u,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     http.Header{"Authorization": {"Bearer " + c.BearerToken.Token}},
-		Host:       u.Host,
-	}
+	return NewRequest(*c.BaseURL, reqPath).
+		AddHeader("Authorization", "Bearer "+c.BearerToken.Token)
 
-	return &Request{
-		Request: req,
-	}
 }
 
 // OAuth fetches a new Bearer token from the configured credentials, and sets
