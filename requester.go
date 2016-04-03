@@ -7,69 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
-	"path"
 )
-
-// Headers is a Modifier which adds to the request headers
-type Headers map[string]string
-
-// Modify implements the Modifier interface
-func (h *Headers) Modify(req *http.Request) {
-	for k, v := range *h {
-		req.Header.Add(k, v)
-	}
-}
-
-// Modifier adds to or changes a request on the way through
-type Modifier interface {
-	Modify(*http.Request)
-}
-
-// RequestBuilder handles client requests after passing through the Modifier
-type RequestBuilder struct {
-	Modifiers []Modifier
-	BaseURL   *url.URL
-}
-
-// NewRequestBuilder creates a requester
-func NewRequestBuilder(url *url.URL) *RequestBuilder {
-	return &RequestBuilder{
-		BaseURL:   url,
-		Modifiers: []Modifier{},
-	}
-}
-
-// WithModifier derives a new requester with the given modifier
-func (rb *RequestBuilder) WithModifier(mod Modifier) *RequestBuilder {
-	n := &RequestBuilder{
-		BaseURL:   rb.BaseURL,
-		Modifiers: append(rb.Modifiers, mod),
-	}
-	return n
-}
-
-// New starts a new builder chain
-func (rb *RequestBuilder) New(reqPath string) *Request {
-	u := *rb.BaseURL
-	u.Path = path.Join(u.Path, reqPath)
-	req := &http.Request{
-		Method:     "GET",
-		URL:        &u,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		//Body:       rc,
-		Host: u.Host,
-	}
-	for _, mod := range rb.Modifiers {
-		mod.Modify(req)
-	}
-	return &Request{
-		Request: req,
-	}
-}
 
 // Request is a chainable request being built
 type Request struct {
@@ -89,12 +27,13 @@ func (req *Request) err(err error) {
 }
 
 // Query merges provided querystring parameters into the request
-func (req *Request) Query(query *url.Values) *Request {
-	for k, vals := range *query {
-		for _, v := range vals {
-			req.Request.URL.Query().Add(k, v)
-		}
-	}
+func (req *Request) AddQuery(key, value string) *Request {
+	req.Request.URL.Query().Add(key, value)
+	return req
+}
+
+func (req *Request) AddHeader(key string, value string) *Request {
+	req.Request.Header.Add(key, value)
 	return req
 }
 
@@ -108,7 +47,7 @@ func (req *Request) PostJSON(body interface{}) *Request {
 		req.err(err)
 		return req
 	}
-	req.Header.Add("Content-Type", "application/json")
+	req.AddHeader("Content-Type", "application/json")
 	req.Body = ioutil.NopCloser(bodyBytes)
 	return req
 }

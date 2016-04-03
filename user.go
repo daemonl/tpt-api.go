@@ -2,20 +2,23 @@ package tpt
 
 import (
 	"fmt"
-	"net/http"
 )
 
 // User wraps an oAuth-ish token which can be used for user authenticated API
 // calls. It extends RequestBuilder for custom http calls, and wraps some of
 // the API calls to the TPT API
 type User struct {
-	*RequestBuilder
-	Token string
+	Token  string
+	Client *Client
 }
 
-// Modify implements Modifier, to add the User-Token to the request
-func (u *User) Modify(req *http.Request) {
-	req.Header.Add("User-Token", u.Token)
+func (u *User) NewRequest(reqPath string) *Request {
+	if len(u.Token) < 1 {
+		return &Request{
+			gotError: fmt.Errorf("User has no token"),
+		}
+	}
+	return u.Client.NewRequest(reqPath).AddHeader("User-Token", u.Token)
 }
 
 /////////////////////////
@@ -28,14 +31,14 @@ func (u *User) RevokeToken() error {
 	resp := &struct {
 		Revoked bool `json:"revoked"`
 	}{}
-	err := u.New("/v1/user/oauth/revoke").PostJSON(map[string]string{
+	err := u.NewRequest("/v1/user/oauth/revoke").PostJSON(map[string]string{
 		"token": u.Token,
 	}).DecodeInto(resp)
 	if err != nil {
 		return err
 	}
 	if resp.Revoked {
-		u.RequestBuilder = nil
+		u.Token = ""
 		return nil
 	}
 	return fmt.Errorf("Not Revoked")
@@ -44,6 +47,6 @@ func (u *User) RevokeToken() error {
 // GetAccountDetails returns the user’s account details.
 func (u *User) GetAccountDetails() (*UserAccountDetails, error) {
 	resp := &UserAccountDetails{}
-	err := u.New("/v1/user/account").DecodeInto(resp)
+	err := u.NewRequest("/v1/user/account").DecodeInto(resp)
 	return resp, err
 }

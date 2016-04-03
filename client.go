@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"path"
 	"sync"
 )
 
@@ -25,9 +26,8 @@ type Config struct {
 
 // Client is the root of the connection to the TPT API
 type Client struct {
+	BaseURL *url.URL
 	sync.RWMutex
-	TokenRequestBuilder *RequestBuilder
-	*RequestBuilder
 	Config
 	*BearerToken
 }
@@ -39,13 +39,33 @@ func NewClient(config Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		Config:              config,
-		TokenRequestBuilder: NewRequestBuilder(u),
+		Config:  config,
+		BaseURL: u,
 	}, nil
+}
+
+// New starts a new builder chain
+func (c *Client) NewRequest(reqPath string) *Request {
+	u := *c.BaseURL
+	u.Path = path.Join(u.Path, reqPath)
+	req := &http.Request{
+		Method:     "GET", // Default, can be changed by the chainer
+		URL:        &u,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     http.Header{"Authorization": {"Bearer " + c.BearerToken.Token}},
+		Host:       u.Host,
+	}
+
+	return &Request{
+		Request: req,
+	}
 }
 
 // OAuth fetches a new Bearer token from the configured credentials, and sets
 // up the client's TokenRequestBuilder
+// TODO: This should be automatic, and handle expiry automatically.
 func (c *Client) OAuth() error {
 	c.Lock()
 	defer c.Unlock()
@@ -76,11 +96,6 @@ func (c *Client) OAuth() error {
 	}
 
 	c.BearerToken = token
-	c.RequestBuilder = c.TokenRequestBuilder.WithModifier(
-		&Headers{
-			"Authorization": "Bearer " + c.BearerToken.Token,
-		},
-	)
 
 	return nil
 }
@@ -93,7 +108,7 @@ func (c *Client) ExchangeUserCode(code string) (*User, error) {
 		Token string `json:"user_token"`
 	}{}
 
-	err := c.New("/v1/user/oauth/token").PostJSON(map[string]string{
+	err := c.NewRequest("/v1/user/oauth/token").PostJSON(map[string]string{
 		"code": code,
 	}).DecodeInto(respBody)
 
@@ -107,9 +122,8 @@ func (c *Client) ExchangeUserCode(code string) (*User, error) {
 // User returns a User object from an oAuth-ish token which can be used for
 // user authenticated API calls
 func (c *Client) User(token string) *User {
-	u := &User{
-		Token: token,
+	return &User{
+		Token:  token,
+		Client: c,
 	}
-	u.RequestBuilder = c.RequestBuilder.WithModifier(u)
-	return u
 }

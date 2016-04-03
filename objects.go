@@ -1,7 +1,5 @@
 package tpt
 
-import "net/url"
-
 type UserAccountDetails struct {
 	ID              string `json:"id"`
 	Status          string `json:"status"`
@@ -45,8 +43,8 @@ type NewsItem struct {
 
 func (c *Client) GetNews(symbol string) (*NewsResponse, error) {
 	resp := &NewsResponse{}
-	err := c.New("/v1/news").
-		Query(&url.Values{"symbol": {symbol}}).
+	err := c.NewRequest("/v1/news").
+		AddQuery("symbol", symbol).
 		DecodeInto(resp)
 	return resp, err
 }
