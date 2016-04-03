@@ -11,8 +11,10 @@ import (
 	"path"
 )
 
+// Headers is a Modifier which adds to the request headers
 type Headers map[string]string
 
+// Modify implements the Modifier interface
 func (h *Headers) Modify(req *http.Request) {
 	for k, v := range *h {
 		req.Header.Add(k, v)
@@ -39,14 +41,15 @@ func NewRequestBuilder(url *url.URL) *RequestBuilder {
 }
 
 // WithModifier derives a new requester with the given modifier
-func (r *RequestBuilder) WithModifier(mod Modifier) *RequestBuilder {
+func (rb *RequestBuilder) WithModifier(mod Modifier) *RequestBuilder {
 	n := &RequestBuilder{
-		BaseURL:   r.BaseURL,
-		Modifiers: append(r.Modifiers, mod),
+		BaseURL:   rb.BaseURL,
+		Modifiers: append(rb.Modifiers, mod),
 	}
 	return n
 }
 
+// New starts a new builder chain
 func (rb *RequestBuilder) New(reqPath string) *Request {
 	u := *rb.BaseURL
 	u.Path = path.Join(u.Path, reqPath)
@@ -68,48 +71,62 @@ func (rb *RequestBuilder) New(reqPath string) *Request {
 	}
 }
 
+// Request is a chainable request being built
 type Request struct {
 	*http.Request
 	gotError error
 }
 
-func (r *Request) err(err error) {
-	if r.gotError == nil {
-		r.gotError = err
+// err sets the internal error. Only the first error is ever returned, and only
+// at the end of the build process. This makes the chaining possible and clean,
+// otherwise each step would have to be checked for its own error.
+// Consequently, while this is 'prettry cool' to work with, it's not really
+// idiomatic go.
+func (req *Request) err(err error) {
+	if req.gotError == nil {
+		req.gotError = err
 	}
 }
 
-func (r *Request) Query(query *url.Values) *Request {
+// Query merges provided querystring parameters into the request
+func (req *Request) Query(query *url.Values) *Request {
 	for k, vals := range *query {
 		for _, v := range vals {
-			r.Request.URL.Query().Add(k, v)
+			req.Request.URL.Query().Add(k, v)
 		}
 	}
-	return r
+	return req
 }
 
-// Post performs a http POST request, writing the body as application/json
-func (r *Request) PostJSON(body interface{}) *Request {
-	r.Request.Method = "POST"
+// PostJSON adds a request reader for the JSON encoding of the provided body,
+// sets the method to POST, and adds an application/json content type
+func (req *Request) PostJSON(body interface{}) *Request {
+	req.Request.Method = "POST"
 	bodyBytes := &bytes.Buffer{}
 	err := json.NewEncoder(bodyBytes).Encode(body)
 	if err != nil {
-		r.err(err)
-		return r
+		req.err(err)
+		return req
 	}
-	r.Header.Add("Content-Type", "application/json")
-	r.Body = ioutil.NopCloser(bodyBytes)
-	return r
+	req.Header.Add("Content-Type", "application/json")
+	req.Body = ioutil.NopCloser(bodyBytes)
+	return req
 }
 
-func (r *Request) RawResponse() (*http.Response, error) {
-	if r.gotError != nil {
-		return nil, r.gotError
+// RawResponse performs the request, and just returns the response. It is the
+// last point of the chaining, but is wrapped by other methods as well, so may
+// not be called directly
+func (req *Request) RawResponse() (*http.Response, error) {
+	if req.gotError != nil {
+		return nil, req.gotError
 	}
 
-	return http.DefaultClient.Do(r.Request)
+	return http.DefaultClient.Do(req.Request)
 }
 
+// DecodeInto is an extension of RawResponse, which decodes a JSON body into
+// the provided object. Just for fun, it also sets the Accept header to
+// application/json,
 func (req *Request) DecodeInto(responseInto interface{}) error {
 	req.Header.Add("Accept", "application/json")
 

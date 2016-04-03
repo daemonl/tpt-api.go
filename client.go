@@ -8,17 +8,22 @@ import (
 	"sync"
 )
 
+// BearerToken is given to an API client to authenticate the
+// application
 type BearerToken struct {
 	Token  string `json:"bearer"`
 	Expiry int64  `json:"expiry"`
 }
 
+// Config represents the url and authentication details for
+// connecting to the TPT API
 type Config struct {
 	Endpoint     string `json:"endpoint"`
 	ClientID     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
 }
 
+// Client is the root of the connection to the TPT API
 type Client struct {
 	sync.RWMutex
 	TokenRequestBuilder *RequestBuilder
@@ -27,6 +32,7 @@ type Client struct {
 	*BearerToken
 }
 
+// NewClient builds the default client
 func NewClient(config Config) (*Client, error) {
 	u, err := url.Parse(config.Endpoint)
 	if err != nil {
@@ -38,6 +44,8 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
+// OAuth fetches a new Bearer token from the configured credentials, and sets
+// up the client's TokenRequestBuilder
 func (c *Client) OAuth() error {
 	c.Lock()
 	defer c.Unlock()
@@ -77,6 +85,9 @@ func (c *Client) OAuth() error {
 	return nil
 }
 
+// ExchangeUserCode returns gets a user_token in eschange for the code given at
+// the end of the client oAuth2 flow. It returns a User object which can be
+// used for user authenticated API calls
 func (c *Client) ExchangeUserCode(code string) (*User, error) {
 	respBody := &struct {
 		Token string `json:"user_token"`
@@ -93,11 +104,12 @@ func (c *Client) ExchangeUserCode(code string) (*User, error) {
 	return c.User(respBody.Token), nil
 }
 
+// User returns a User object from an oAuth-ish token which can be used for
+// user authenticated API calls
 func (c *Client) User(token string) *User {
-	return &User{
+	u := &User{
 		Token: token,
-		RequestBuilder: c.RequestBuilder.WithModifier(
-			&Headers{"User-Token": token},
-		),
 	}
+	u.RequestBuilder = c.RequestBuilder.WithModifier(u)
+	return u
 }

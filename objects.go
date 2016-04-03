@@ -9,6 +9,7 @@ type UserAccountDetails struct {
 	NonProfessional bool   `json:"non_professional"`
 	AccountType     string `json:"account_type"`
 }
+
 type UserAccountApplicant struct {
 	FirstName          string  `json:"first_name"`
 	MiddleName         string  `json:"middle_name"`
@@ -22,6 +23,7 @@ type UserAccountApplicant struct {
 	MobileDevice       string  `json:"mobile_device"`
 	Address            Address `json:"address"`
 }
+
 type Address struct {
 	Line1      *string `json:"line_1,omitempty"`
 	Line2      *string `json:"line_2,omitempty"`
