@@ -12,10 +12,12 @@ type User struct {
 	Client *Client
 }
 
+// NewRequest returns a request builder which is pre-populated with
+// authentication headers for the user and application
 func (u *User) NewRequest(reqPath string) *Request {
 	if len(u.Token) < 1 {
 		return &Request{
-			gotError: fmt.Errorf("User has no token"),
+			firstError: fmt.Errorf("User has no token"),
 		}
 	}
 	return u.Client.NewRequest(reqPath).AddHeader("User-Token", u.Token)

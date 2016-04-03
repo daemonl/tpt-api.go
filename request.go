@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
+
 	"net/http"
 	"net/url"
 	"path"
@@ -14,7 +14,7 @@ import (
 // Request is a chainable request being built
 type Request struct {
 	*http.Request
-	gotError error
+	firstError error
 }
 
 // NewRequest builds a default request from a url and path.
@@ -40,17 +40,24 @@ func NewRequest(base url.URL, reqPath string) *Request {
 // Consequently, while this is 'prettry cool' to work with, it's not really
 // idiomatic go.
 func (req *Request) err(err error) {
-	if req.gotError == nil {
-		req.gotError = err
+	if req.firstError == nil {
+		req.firstError = err
 	}
 }
 
-// Query merges provided querystring parameters into the request
+// AddQuery adds a new key and value to the querystring. It uses .Add(), so
+// will *not* replace existing values
 func (req *Request) AddQuery(key, value string) *Request {
-	req.Request.URL.Query().Add(key, value)
+	// This is slower than it needs to be. Parses the query, appends, then
+	// re-encodes it
+	q := req.Request.URL.Query()
+	q.Add(key, value)
+	req.Request.URL.RawQuery = q.Encode()
 	return req
 }
 
+// AddHeader adds a new key and value to the request's headers. It uses .Add(),
+// so will *not* replace existing headers
 func (req *Request) AddHeader(key string, value string) *Request {
 	req.Request.Header.Add(key, value)
 	return req
@@ -75,8 +82,8 @@ func (req *Request) PostJSON(body interface{}) *Request {
 // last point of the chaining, but is wrapped by other methods as well, so may
 // not be called directly
 func (req *Request) RawResponse() (*http.Response, error) {
-	if req.gotError != nil {
-		return nil, req.gotError
+	if req.firstError != nil {
+		return nil, req.firstError
 	}
 
 	return http.DefaultClient.Do(req.Request)
@@ -92,7 +99,7 @@ func (req *Request) DecodeInto(responseInto interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("API %s %s -> %s\n", req.Method, req.URL.String(), resp.Status)
+	//log.Printf("API %s %s -> %s\n", req.Method, req.URL.String(), resp.Status)
 	if resp.StatusCode != 200 {
 		return fmt.Errorf(resp.Status)
 	}
