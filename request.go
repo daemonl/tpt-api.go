@@ -11,13 +11,19 @@ import (
 	"path"
 )
 
-// Request is a chainable request being built
+// Request is a chainable request being built. It supports a very limited
+// subset of standard the net/http request, but is sufficient for the TPT API
+// Errors in the chain are stored, and only the first is returned at the end of
+// the build process. This makes the chaining possible and clean, otherwise
+// each step would have to be checked for its own error.  Consequently, while
+// this is 'prettry cool' to work with, it's not really idiomatic go.
 type Request struct {
 	*http.Request
 	firstError error
 }
 
-// NewRequest builds a default request from a url and path.
+// NewRequest builds a default request from a url and path. the base url is
+// passed by value to avoid any accidental modification / proove immutability
 func NewRequest(base url.URL, reqPath string) *Request {
 	base.Path = path.Join(base.Path, reqPath)
 	req := &http.Request{
@@ -34,11 +40,8 @@ func NewRequest(base url.URL, reqPath string) *Request {
 	}
 }
 
-// err sets the internal error. Only the first error is ever returned, and only
-// at the end of the build process. This makes the chaining possible and clean,
-// otherwise each step would have to be checked for its own error.
-// Consequently, while this is 'prettry cool' to work with, it's not really
-// idiomatic go.
+// err sets the internal error. Only the first error is ever returned, see
+// comment for Reqeust
 func (req *Request) err(err error) {
 	if req.firstError == nil {
 		req.firstError = err
