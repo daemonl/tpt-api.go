@@ -3,6 +3,7 @@ package tpt
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -47,11 +48,10 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
-// New starts a new builder chain
+// NewRequest starts a new builder chain
 func (c *Client) NewRequest(reqPath string) *Request {
 	return NewRequest(*c.BaseURL, reqPath).
 		AddHeader("Authorization", "Bearer "+c.BearerToken.Token)
-
 }
 
 // OAuth fetches a new Bearer token from the configured credentials, and sets
@@ -75,11 +75,14 @@ func (c *Client) OAuth() error {
 	}
 
 	resp, err := http.Post(
-		c.Endpoint+"/v1/oauth/token",
+		c.Endpoint+"/oauth/token",
 		"application/json", reqBodyBuf)
 
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode != 200 {
+		return errors.New("Authentication error: " + resp.Status)
 	}
 
 	defer resp.Body.Close()
