@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 
 	"net/http"
@@ -79,6 +80,49 @@ func (req *Request) PostJSON(body interface{}) *Request {
 	req.AddHeader("Content-Type", "application/json")
 	req.Body = ioutil.NopCloser(bodyBytes)
 	return req
+}
+
+// Sets the method to POST
+func (req *Request) Post(body io.ReadCloser) *Request {
+	return req.set(body, "POST")
+}
+
+// Sets the method to PATCH
+func (req *Request) Patch(body io.ReadCloser) *Request {
+	return req.set(body, "PATCH")
+}
+
+// Sets teh method to DELETE
+func (req *Request) Delete() *Request {
+	req.Method = "DELETE"
+	return req
+}
+
+func (req *Request) set(data io.ReadCloser, method string) *Request {
+	req.Request.Method = method
+
+	buf := &bytes.Buffer{}
+	io.Copy(buf, data)               // make a copy of the data
+	data.Close()                     // close data
+	req.Body = ioutil.NopCloser(buf) // update request with the copied data
+	return req
+}
+
+// String performs the request, and returns the json string response.
+func (req *Request) String() (string, error) {
+	req.Header.Add("Accept", "application/json")
+	resp, err := req.RawResponse()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	resp.Body.Close()
+
+	return string(data), nil
 }
 
 // RawResponse performs the request, and just returns the response. It is the
