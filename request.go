@@ -67,6 +67,21 @@ func (req *Request) AddHeader(key string, value string) *Request {
 	return req
 }
 
+// PostJSON adds a request reader for the JSON encoding of the provided body,
+// sets the method to POST, and adds an application/json content type
+func (req *Request) PostJSON(body interface{}) *Request {
+	req.Request.Method = "POST"
+	bodyBytes := &bytes.Buffer{}
+	err := json.NewEncoder(bodyBytes).Encode(body)
+	if err != nil {
+		req.err(err)
+		return req
+	}
+	req.AddHeader("Content-Type", "application/json")
+	req.Body = ioutil.NopCloser(bodyBytes)
+	return req
+}
+
 // Sets the method to POST
 func (req *Request) Post(body io.ReadCloser) *Request {
 	return req.set(body, "POST")

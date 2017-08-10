@@ -96,6 +96,34 @@ func (c *Client) OAuth() error {
 	return nil
 }
 
+// ExchangeUserCode returns gets a user_token in eschange for the code given at
+// the end of the client oAuth2 flow. It returns a User object which can be
+// used for user authenticated API calls
+func (c *Client) ExchangeUserCode(code string) (*User, error) {
+	respBody := &struct {
+		Token string `json:"user_token"`
+	}{}
+
+	err := c.NewRequest("/v1/user/oauth/token").PostJSON(map[string]string{
+		"code": code,
+	}).DecodeInto(respBody)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return c.User(respBody.Token), nil
+}
+
+// User returns a User object from an oAuth-ish token which can be used for
+// user authenticated API calls
+func (c *Client) User(token string) *User {
+	return &User{
+		Token:  token,
+		Client: c,
+	}
+}
+
 /////////////////////////
 // Wrapped API Methods //
 /////////////////////////

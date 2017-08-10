@@ -29,6 +29,25 @@ func (u *User) NewRequest(reqPath string) *Request {
 // Wrapped API Methods //
 /////////////////////////
 
+// RevokeToken revokes an existing access token. This token will no longer be
+// able to be used for authentication.
+func (u *User) RevokeToken() error {
+	resp := &struct {
+		Revoked bool `json:"revoked"`
+	}{}
+	err := u.NewRequest("/v1/user/oauth/revoke").PostJSON(map[string]string{
+		"token": u.Token,
+	}).DecodeInto(resp)
+	if err != nil {
+		return err
+	}
+	if resp.Revoked {
+		u.Token = ""
+		return nil
+	}
+	return fmt.Errorf("Not Revoked")
+}
+
 // GetAccountDetails returns the user’s account details.
 func (u *User) GetAccountDetails() (*tptobjects.UserAccountDetails, error) {
 	resp := &tptobjects.UserAccountDetails{}
