@@ -3,9 +3,12 @@ package tpt
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/daemonl/tpt.go/tptobjects"
 )
@@ -13,8 +16,8 @@ import (
 // BearerToken is given to an API client to authenticate the
 // application
 type BearerToken struct {
-	Token  string `json:"bearer"`
-	Expiry int64  `json:"expiry"`
+	Token  string    `json:"access_token"`
+	Expiry time.Time `json:"expiry"`
 }
 
 // Config represents the url and authentication details for
@@ -45,11 +48,10 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
-// New starts a new builder chain
+// NewRequest starts a new builder chain
 func (c *Client) NewRequest(reqPath string) *Request {
 	return NewRequest(*c.BaseURL, reqPath).
 		AddHeader("Authorization", "Bearer "+c.BearerToken.Token)
-
 }
 
 // OAuth fetches a new Bearer token from the configured credentials, and sets
@@ -63,19 +65,24 @@ func (c *Client) OAuth() error {
 	if err := json.NewEncoder(reqBodyBuf).Encode(&struct {
 		ClientID     string `json:"client_id"`
 		ClientSecret string `json:"client_secret"`
+		GrantType    string `json:"grant_type"`
 	}{
 		ClientID:     c.ClientID,
 		ClientSecret: c.ClientSecret,
+		GrantType:    "client_credentials",
 	}); err != nil {
 		return err
 	}
 
 	resp, err := http.Post(
-		c.Endpoint+"/v1/oauth/token",
+		c.Endpoint+"/oauth/token",
 		"application/json", reqBodyBuf)
 
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode != 200 {
+		return errors.New("Authentication error: " + resp.Status)
 	}
 
 	defer resp.Body.Close()
@@ -123,8 +130,7 @@ func (c *Client) User(token string) *User {
 
 func (c *Client) GetNews(symbol string) (*tptobjects.NewsResponse, error) {
 	resp := &tptobjects.NewsResponse{}
-	err := c.NewRequest("/v1/news").
-		AddQuery("symbol", symbol).
+	err := c.NewRequest(fmt.Sprintf("/v1/market/symbols/%s/company/news", symbol)).
 		DecodeInto(resp)
 	return resp, err
 }
